@@ -14,6 +14,8 @@ import time
 
 X_SIZE = 20
 Y_SIZE = 20
+X_PSIZE = 14
+Y_PSIZE = 18
 
 
 class Window(QtGui.QWidget):
@@ -26,8 +28,11 @@ class Window(QtGui.QWidget):
         self.show()
         # init timer
         self.timer = QTimer()
-        self.timer.timeout.connect(self.repaint)
+        self.timer.timeout.connect(self.gameLoop)
         self.timer.start(20)
+    def gameLoop(self):
+        self.repaint()
+
 
     def home(self):
         QtGui.QGraphicsRectItem()
@@ -58,18 +63,17 @@ class Window(QtGui.QWidget):
 
     def drawPlayer(self, qp):
         qp.setBrush(QtGui.QColor(255, 255, 255, 160))
-        for player in players:
-            qp.drawEllipse(player.x, player.y, 14, 18)
+        qp.drawEllipse(player.x, player.y, X_PSIZE, Y_PSIZE)
 
     def drawMap(self, qp):
         for (x, y), value in np.ndenumerate(map.map):
-            if value == 1: # destructible block
+            if value == 1:  # destructible block
                 self.drawBlockN(qp, x, y)
             elif value == 3:  # indestructible block
                 self.drawBlockD(qp, x, y)
-            elif value == 2:
+            elif value == 2:  # bomb
                 self.drawBomb(qp, x, y)
-            elif value == 4:
+            elif value == 4:  # explode effect
                 self.drawBombExplode(qp, x, y)
 
 
@@ -77,26 +81,29 @@ class Window(QtGui.QWidget):
     def keyPressEvent(self, e):
        # if not self.isPaused:
             if e.key() == QtCore.Qt.Key_Up: #and self.lastKeyPress != 'UP' and self.lastKeyPress != 'DOWN':
-                players[0].direction = 0
-                players[0].y -= 4
+                player.direction = 0
+                player.y -= 4
                 # self.direction("UP")
                 # self.lastKeyPress = 'UP'
                 print("up")
             elif e.key() == QtCore.Qt.Key_Down:
-                players[0].direction = 1
-                players[0].y += 4
+                player.direction = 1
+                player.y += 4
                 print("down")
             elif e.key() == QtCore.Qt.Key_Left:
-                players[0].direction = 2
-                players[0].x -= 4
+                player.direction = 2
+                player.x -= 4
                 print("left")
             elif e.key() == QtCore.Qt.Key_Right:
-                players[0].direction = 3
-                players[0].x += 4
+                player.direction = 3
+                player.x += 4
                 print("right")
             elif e.key() == QtCore.Qt.Key_Space:
-                players[0].bombList.append(Bomb(int(players[0].x/20), int(players[0].y/20)))
-            players[0].checkCollision()
+                player.bombList.append(Bomb(int(player.x/20), int(player.y/20)))
+                print('added')
+            player.updatePlayer()
+            print(player.top, player.bottom, player.left, player.right)
+            #player.checkCollision()
             #GUI.repaint()
             # elif e.key() == QtCore.Qt.Key_Down and self.lastKeyPress != 'DOWN' and self.lastKeyPress != 'UP':
             #     self.direction("DOWN")
@@ -116,7 +123,6 @@ class Window(QtGui.QWidget):
         # elif e.key() == QtCore.Qt.Key_Escape:
         #     self.close()
     #def checkCollision(self):
-
 
 class Map:
     def __init__(self, x, y):
@@ -156,13 +162,18 @@ class Player():
         self.y = y
         self.direction = -1;
         self.bombList = []
-        # self.top = self.x
-        # self.bottom
-        # self.left
-        # self.right
-        # self.bombRange = 0
+        self.left = self.x
+        self.right = self.x + X_PSIZE
+        self.top = self.y
+        self.bottom = self.y + Y_PSIZE
+        self.bombRange = 0
+    def updatePlayer(self):
+        self.left = self.x
+        self.right = self.x + X_PSIZE
+        self.top = self.y
+        self.bottom = self.y + Y_PSIZE
     def checkCollision(self):
-         if map.map[int(self.x/20)][int(self.y/20)] != 0:
+         if map.map[int(self.x/X_SIZE)][int(self.y/Y_SIZE)] != 0:
              print('collision')
         # if (block.bottom() >= ball.top()) // kolizja z dolu klocka
         #     ball.velocity.y = ballVelo;
@@ -184,35 +195,66 @@ class Bomb():
     def __init__(self, x, y):
         self.x = x
         self.y = y
-        map.map[x][y] = 2
+        if  map.map[x][y] != 2:
+            map.map[x][y] = 2
         self.bomb_timer = QTimer()
+        self.explode_timer = QTimer()
         self.bomb_timer.timeout.connect(self.bombTrigger)
+        #self.bomb_timer.setSingleShot(True)
         self.bomb_timer.start(Bomb.tick_time)
-        self.bomb_timer.setSingleShot(True)
         self.bombRange = 4
         # self.bombRange = 0
-    def bombTrigger(self):
-        self.bomb_timer.timeout.connect(self.bombExplode)
-        self.bomb_timer.start(Bomb.explode_anim)
+    def bombTrigger(self): # po 3 sekundach bomba wybocuha, malujemy na czerwono
+        self.bomb_timer.stop()
+        self.explode_timer.timeout.connect(self.bombExplode)
+        self.explode_timer.start(Bomb.explode_anim)
         # nie wyglada ladnie
-        for x1 in range(self.x - self.bombRange + 1, self.x + self.bombRange):
-            if map.map[x1][self.y] < 3:
-                map.map[x1][self.y] = 4
-        for y1 in range(self.y - self.bombRange + 1, self.y + self.bombRange):
-            if map.map[self.x][y1] < 3:
-                map.map[self.x][y1] = 4
+        for x1 in range(1, self.bombRange):
+            if map.map[self.x - x1][self.y] == 0:
+                map.map[self.x - x1][self.y] = 4
+            elif map.map[self.x - x1][self.y] == 1:
+                map.map[self.x - x1][self.y] = 4
+                break
+        for x1 in range(1, self.bombRange):
+            if map.map[self.x + x1][self.y] == 0:
+                map.map[self.x + x1][self.y] = 4
+            elif map.map[self.x + x1][self.y] == 1:
+                map.map[self.x + x1][self.y] = 4
+                break
+
+        for x1 in range(1, self.bombRange):
+            if map.map[self.x][self.y + x1] == 0:
+                map.map[self.x][self.y + x1] = 4
+            elif map.map[self.x][self.y + x1] == 1:
+                map.map[self.x][self.y + x1] = 4
+                break
+        for x1 in range(1, self.bombRange):
+            if map.map[self.x][self.y - x1] == 0:
+                map.map[self.x][self.y - x1] = 4
+            elif map.map[self.x][self.y - x1] == 1:
+                map.map[self.x][self.y - x1] = 4
+                break
+        # for x1 in range(self.x - self.bombRange + 1, self.x + self.bombRange):
+        #     if map.map[x1][self.y] < 2:
+        #         map.map[x1][self.y] = 4
+        # for y1 in range(self.y - self.bombRange + 1, self.y + self.bombRange):
+        #     if map.map[self.x][y1] < 3:
+        #         map.map[self.x][y1] = 4
         # for x in range(self.x-1, self.x+2):
         #     for y in range(self.y-1, self.y + 2):
         #         if map.map[x][y] == 0 or map.map[x][y] == 1 or  map.map[x][y] == 3:
         #             map.map[x][y] = 4
     def bombExplode(self):
         # nie wyglada ladnie
+        map.map[self.x][self.y] = 0
         for x1 in range(self.x - self.bombRange + 1, self.x + self.bombRange):
             if map.map[x1][self.y] == 4:
                 map.map[x1][self.y] = 0
         for y1 in range(self.y - self.bombRange + 1, self.y + self.bombRange):
             if map.map[self.x][y1] == 4:
                 map.map[self.x][y1] = 0
+        self.bomb_timer.stop()
+        player.bombList.pop(0)
         #if
         # for x in range(self.x-1, self.x+2):
         #     for y in range(self.y-1, self.y + 2):
@@ -223,9 +265,9 @@ class Bomb():
     #         if map.map[x1] == 0 or map.map[x1] == 1 or map.map[x1] == 3:
 
 
-players = []
+
 bots = []
-players.append(Player(0, 0))
+player = Player(0, 0)
 map = Map(40, 40)
 app = QtGui.QApplication(sys.argv)
 GUI = Window()
