@@ -9,8 +9,7 @@ import numpy as np
 import xml.etree.ElementTree
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import QTimer
-import threading
-import time
+from random import randint
 
 X_SIZE = 20
 Y_SIZE = 20
@@ -32,7 +31,18 @@ class Window(QtGui.QWidget):
         self.timer.start(20)
     def gameLoop(self):
         self.repaint()
-
+        for x in range(player.grid_x - 1, player.grid_x + 2):
+            for y in range(player.grid_y - 1, player.grid_y + 2):
+                if player.rect.intersects(map.map[x][y].rect):
+                    if map.map[x][y].id > 0 and map.map[x][y].id < 3: # kolizja
+                        print('collision')
+                    if map.map[x][y].id == 4: # bomba
+                        print('game over')
+                        #self.timer.stop()
+    # def gameOver(self):
+    #     qp = QtGui.QPainter()
+    #     rect = QtCore.QRectF(100, 100, 200, 300)
+    #     qp.drawText()
 
     def home(self):
         QtGui.QGraphicsRectItem()
@@ -69,14 +79,18 @@ class Window(QtGui.QWidget):
         qp.fillRect(player.rect, QtGui.QColor(90, 90, 90, 160))
         # qp.setBrush(QtGui.QColor(255, 255, 255, 160))
         # qp.drawEllipse(player.x, player.y, X_PSIZE, Y_PSIZE)
+    def drawBot(self, qp):
+        bots[0].moveBot()
+        qp.fillRect(bots[0].rect, QtGui.QColor(50, 90, 50, 160))
 
     def drawMap(self, qp):
+        #self.drawBot(qp)
         for (x, y), value in np.ndenumerate(map.map):
             if value.id == 1:  # destructible block
                 self.drawBlockN(qp, x, y)
-            elif value.id == 3:  # indestructible block
+            elif value.id == 2:  # indestructible block
                 self.drawBlockD(qp, x, y)
-            elif value.id == 2:  # bomb
+            elif value.id == 3:  # bomb
                 self.drawBomb(qp, x, y)
             elif value.id == 4:  # explode effect
                 self.drawBombExplode(qp, x, y)
@@ -86,58 +100,21 @@ class Window(QtGui.QWidget):
 
 
     def keyPressEvent(self, e):
-       # if not self.isPaused:
-            if e.key() == QtCore.Qt.Key_Up: #and self.lastKeyPress != 'UP' and self.lastKeyPress != 'DOWN':
-                player.direction = 0
-                if ~player.rect.intersect(map.map[int(player.rect.x()/20)][int((player.rect.y()-4/20))]):
-                    player.rect.setRect(player.rect.x(), player.rect.y()-4, X_PSIZE, Y_PSIZE)
-                #player.rect.setY(player.rect.y()-4)
-                #player.y -= 4
-                # self.direction("UP")
-                # self.lastKeyPress = 'UP'
-                #print("up")
-            elif e.key() == QtCore.Qt.Key_Down:
-                player.direction = 1
-                player.rect.setRect(player.rect.x(), player.rect.y() + 4, X_PSIZE, Y_PSIZE)
-                #player.rect.setY(player.rect.y() + 4)
-                #player.y += 4
-                #print("down")
-            elif e.key() == QtCore.Qt.Key_Left:
-                player.direction = 2
-                player.rect.setRect(player.rect.x() - 4, player.rect.y(), X_PSIZE, Y_PSIZE)
-                #player.rect.setX(player.rect.x() - 4)
-                #player.x -= 4
-                #print("left")
-            elif e.key() == QtCore.Qt.Key_Right:
-                player.direction = 3
-                player.rect.setRect(player.rect.x() + 4, player.rect.y(), X_PSIZE, Y_PSIZE)
-                #player.rect.setX(player.rect.x() + 4)
-                #player.x += 4
-                #print("right")
-            elif e.key() == QtCore.Qt.Key_Space:
-                player.bombList.append(Bomb(int(player.rect.x()/20), int(player.rect.y()/20)))
-                #print('added')
-            #player.updatePlayer()
-            #player.checkCollision()
-            #GUI.repaint()
-            # elif e.key() == QtCore.Qt.Key_Down and self.lastKeyPress != 'DOWN' and self.lastKeyPress != 'UP':
-            #     self.direction("DOWN")
-            #     self.lastKeyPress = 'DOWN'
-            # elif e.key() == QtCore.Qt.Key_Left and self.lastKeyPress != 'LEFT' and self.lastKeyPress != 'RIGHT':
-            #     self.direction("LEFT")
-            #     self.lastKeyPress = 'LEFT'
-            # elif e.key() == QtCore.Qt.Key_Right and self.lastKeyPress != 'RIGHT' and self.lastKeyPress != 'LEFT':
-            #     self.direction("RIGHT")
-            #     self.lastKeyPress = 'RIGHT'
-            # elif e.key() == QtCore.Qt.Key_P:
-            #     self.pause()
-         # elif e.key() == QtCore.Qt.Key_P:
-         #     self.start()
-        # elif e.key() == QtCore.Qt.Key_Space:
-        #     self.newGame()
-        # elif e.key() == QtCore.Qt.Key_Escape:
-        #     self.close()
-    #def checkCollision(self):
+
+        if e.key() == QtCore.Qt.Key_Up:
+            player.direction = 0
+            player.rect.setRect(player.rect.x(), player.rect.y()-2, X_PSIZE, Y_PSIZE)
+        elif e.key() == QtCore.Qt.Key_Down:
+            player.rect.setRect(player.rect.x(), player.rect.y() + 2, X_PSIZE, Y_PSIZE)
+        elif e.key() == QtCore.Qt.Key_Left:
+            player.rect.setRect(player.rect.x() - 2, player.rect.y(), X_PSIZE, Y_PSIZE)
+        elif e.key() == QtCore.Qt.Key_Right:
+            player.rect.setRect(player.rect.x() + 2, player.rect.y(), X_PSIZE, Y_PSIZE)
+        elif e.key() == QtCore.Qt.Key_Space:
+            player.bombList.append(Bomb(int(player.rect.x()/20), int(player.rect.y()/20)))
+        print('test')
+        print(player.grid_x, player.grid_y)
+
 class QRectColor():
     def __init__(self, x, y, id):
         self.id = id
@@ -148,7 +125,8 @@ class QRectColor():
 class Map:
     def __init__(self, x, y):
         self.map = [[QRectColor(i, j, 0) for j in range(x)] for i in range(y)]
-        self.generateMap()
+        self.generateRandomMap()
+        #self.generateMap()
         #self.xml_file = None
     #TODO zrobic tablice z typami i kolorami bloczkow
     #dodac wczytywanie map
@@ -156,10 +134,24 @@ class Map:
     def getCoordinates(self, x, y):
         return self.map[x][y] # zwraca 4 rogi mapy, top bottom left right
 
+    def generateRandomMap(self):
+        for i in range(0, 1600):
+            x = randint(0, 39)
+            y = randint(0, 39)
+            self.map[x][y].id = 1
+
+        for (x, y), value in np.ndenumerate(self.map):
+            if x % 4 == 2 and y % 4 == 2:
+                self.map[x][y].id = 2
+        # brzydko
+        self.map[0][0].id = 0
+        self.map[0][1].id = 0
+        self.map[1][0].id = 0
+
     def generateMap(self):
         for (x, y), value in np.ndenumerate(self.map):
             if x % 4 == 2 and y % 4 == 2:
-                self.map[x][y].id = 3
+                self.map[x][y].id = 2
             if x % 2 == 1 and y % 2 == 1:
                 self.map[x][y].id = 1
     # def loadMap(self):
@@ -184,6 +176,13 @@ class Player():
         self.direction = -1;
         self.bombList = []
         self.bombRange = 0
+    @property
+    def grid_x(self):
+        return int((self.rect.x() + X_PSIZE/2)/X_SIZE)
+    @property
+    def grid_y(self):
+        return int((self.rect.y() + Y_PSIZE/2)/Y_SIZE)
+
     def checkCollision(self): # slow
         for (x, y), value in np.ndenumerate(map.map):
             if map.map[x][y].id > 0:
@@ -195,6 +194,24 @@ class Player():
         #     if map.map[x][y].id > 0:
         #         if self.rect.intersect(map.map[x][y].rect):
         #             self.direction = 0
+class Bot():
+    def __init__(self, x, y, range_a1, range_a2):
+        self.rect = QtCore.QRect(x, y, X_PSIZE, Y_PSIZE)
+        self.range_a1 = range_a1
+        self.range_a2 = range_a2
+        self.dirx = 1
+        self.diry = 1
+    def moveBot(self):
+        if self.rect.x() == self.range_a1:
+            self.dirx = -1
+            self.diry = -1
+        elif self.rect.x() == self.range_a2:
+            self.dirx = 1
+        elif self.rect.x() == self.range_x:
+            self.dirx = -1
+        elif self.rect.x() == self.range_y:
+            self.dirx = 1
+        self.rect.setRect(self.rect.x() + self.dirx, self.rect.y(), X_PSIZE, Y_PSIZE)
 
 
 class Bomb():
@@ -204,14 +221,14 @@ class Bomb():
     def __init__(self, x, y):
         self.x = x
         self.y = y
-        if  map.map[x][y].id != 2:
-            map.map[x][y].id = 2
+        self.bombRange = 4
         self.bomb_timer = QTimer()
         self.explode_timer = QTimer()
+        if  map.map[x][y].id != 3:
+            map.map[x][y].id = 3
         self.bomb_timer.timeout.connect(self.bombTrigger)
         #self.bomb_timer.setSingleShot(True)
         self.bomb_timer.start(Bomb.tick_time)
-        self.bombRange = 4
         # self.bombRange = 0
     def bombTrigger(self): # po 3 sekundach bomba wybocuha, malujemy na czerwono
         self.bomb_timer.stop()
@@ -276,6 +293,7 @@ class Bomb():
 
 
 bots = []
+#bots.append(Bot(100, 320, 0, 500))
 map = Map(40, 40)
 player = Player(0, 0)
 app = QtGui.QApplication(sys.argv)
