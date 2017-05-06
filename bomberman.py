@@ -5,11 +5,12 @@
 # bot
 
 import sys
+import os
 import numpy as np
-import xml.etree.ElementTree
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import QTimer
 from random import randint
+import pickle
 
 # block size
 X_SIZE = 20
@@ -30,13 +31,15 @@ COL_LEFT = 8
 
 class Window(QtGui.QWidget):
     #isPaused = 0
+    frameCounter = 0
     def __init__(self):
         super(Window, self).__init__() # parent object
-        self.setStyleSheet("QWidget { background: #D5D9A9 }")
+        self.setStyleSheet('QWidget { background: #D5D9A9 }')
         self.setFixedSize(500, 500)
-        self.setWindowTitle("bombelman")
+        self.setWindowTitle('bombelman')
         self.show()
         self.unlock = 0
+        self.frameCounter = 0
         # init timer
         self.timer = QTimer()
         self.timer.timeout.connect(self.gameLoop)
@@ -47,6 +50,7 @@ class Window(QtGui.QWidget):
         checkCollision(player, bots[0])
         for bot in bots:
             bot.moveBot()
+        self.frameCounter += 1
         #print(self.unlock)
                         #self.timer.stop()
                 # else:
@@ -150,6 +154,10 @@ class Window(QtGui.QWidget):
             player.rect.setRect(player.rect.x() + 2, player.rect.y(), X_PSIZE, Y_PSIZE)
         elif e.key() == QtCore.Qt.Key_Space:
             player.bombList.append(Bomb(player.grid_x, player.grid_y))
+        elif e.key() == QtCore.Qt.Key_L:
+            map.loadMap()
+        elif e.key() == QtCore.Qt.Key_S:
+            map.saveMap()
         # print(self.unlock)
         #print(player.grid_x, player.grid_y)
 
@@ -162,8 +170,9 @@ class QRectColor:
 
 class Map:
     def __init__(self, x, y):
+        #self.map = np.array([[QRectColor(i, j, 0) for j in range(x)] for i in range(y)])
         self.map = [[QRectColor(i, j, 0) for j in range(x)] for i in range(y)]
-        self.generateMap()
+        self.generateRandomMap()
         #self.generateMap()
         #self.xml_file = None
     #TODO zrobic tablice z typami i kolorami bloczkow
@@ -191,12 +200,33 @@ class Map:
                 self.map[x][y].id = 2
             if x % 2 == 1 and y % 2 == 1:
                 self.map[x][y].id = 1
-    # def loadMap(self):
-    #     self.xml_file = xml.etree.ElementTree.parse('game.xml').getroot()
-    # def saveMap(self):
+    def saveMap(self):
+        # generowanie nazwy
+        path = os.getcwd()
+        print(path)
+        for i in range(1, 100): # zmienic
+            filename = 'map'
+            filename += str(i)
+            if os.path.isfile(path + '\\' + filename):
+                continue
+            f = open(filename, 'w')
+            for (x, y), value in np.ndenumerate(self.map):
+                f.write(str(value.id) + ' ')
+                if y % 40 == 39:
+                    f.write('\n')
+            break
+        print('saved')
 
-
-
+    def loadMap(self):
+        filename = input('nazwa pliku: ')
+        y = 0
+        with open(filename) as f:
+            for line in f:
+                x = [int(i) for i in line.split()]
+                for xx in range(40):
+                    self.map[xx][y].id = x[xx]
+                y += 1
+        print('loaded')
 # class Game:
 #     def __init__(self, map, players, mobs):
 #         self.map = map
@@ -243,6 +273,16 @@ class Bot:
     @property
     def grid_y(self):
         return int((self.rect.y() + Y_BSIZE/2)/Y_SIZE)
+
+    def get_x(self):
+        self.rect.x() + X_BSIZE/2
+
+    def get_y(self):
+        self.rect.y() + Y_BSIZE/2
+
+    def move(self, speed, x, y):
+
+        self.rect.setRect(self.rect.x() + speed, self.rect.y() + speed, X_BSIZE, Y_BSIZE)
 
     def moveBot(self):
         if self.rect.x() == self.range_a2:
@@ -349,5 +389,4 @@ map = Map(40, 40)
 player = Player(0, 0)
 app = QtGui.QApplication(sys.argv)
 GUI = Window()
-
 sys.exit(app.exec_())
