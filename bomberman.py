@@ -6,11 +6,16 @@
 
 import sys
 import os
+
+import itertools
 import numpy as np
-from PyQt4 import QtGui, QtCore
-from PyQt4.QtCore import QTimer
+from PyQt5 import QtGui, QtCore
+from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5.QtCore import QTimer
 from random import randint
-import pickle
+from PyQt5 import QtCore, QtGui, QtWidgets
+from xml.dom.minidom import *
+from collections import defaultdict
 
 # block size
 X_SIZE = 20
@@ -29,9 +34,8 @@ COL_RIGHT = 4
 COL_LEFT = 8
 
 
-class Window(QtGui.QWidget):
+class Window(QtWidgets.QWidget):
     #isPaused = 0
-    frameCounter = 0
     def __init__(self):
         super(Window, self).__init__() # parent object
         self.setStyleSheet('QWidget { background: #D5D9A9 }')
@@ -40,25 +44,44 @@ class Window(QtGui.QWidget):
         self.show()
         self.unlock = 0
         self.frameCounter = 0
+        self.replayMode = 0
+        self.lf = 0;
+        self.lf2 = 0;
         # init timer
         self.timer = QTimer()
         self.timer.timeout.connect(self.gameLoop)
         self.timer.start(20)
     def gameLoop(self):
-        self.repaint()
-        self.checkMapCollision()
-        checkCollision(player, bots[0])
-        for bot in bots:
-            bot.moveBot()
+        if self.replayMode == 0:
+            self.repaint()
+            self.checkMapCollision()
+            checkCollision(player, bots[0])
+            for bot in bots:
+                bot.moveBot()
+        elif self.replayMode:
+            for i in range(self.lf2, len(replay.tileList)):
+                if replay.tileList[i][0] == self.frameCounter: # moze byc kilka zmian w tej samej klatce
+                    # xx = replay.tileList[1]
+                    # yy = replay.tileList[2]
+                    # map.map[(lambda x: x if x > 0 else 0)(xx)][(lambda x: x if x > 0 else 0)(yy)].id = replay.tileList[3]
+                    print('test')
+                    #map.map[1][1].id = 0
+                    map.map[replay.tileList[i][1]][replay.tileList[i][2]].id = replay.tileList[i][3]
+                    print('test111')
+                else:
+                    self.lf2 = i
+                    break
+
+            for i in range(self.lf, len(replay.playerList)):
+                if replay.playerList[i][0] == self.frameCounter: # moze byc kilka zmian w tej samej klatce
+                    player.rect.setRect(replay.playerList[i][1], replay.playerList[i][2], X_PSIZE, Y_PSIZE)
+                else:
+                    self.lf = i
+                    break
+            self.repaint()
+
         self.frameCounter += 1
-        #print(self.unlock)
-                        #self.timer.stop()
-                # else:
-                #     self.unlock = -1
-    # def gameOver(self):
-    #     qp = QtGui.QPainter()
-    #     rect = QtCore.QRectF(100, 100, 200, 300)
-    #     qp.drawText()
+
     def checkMapCollision(self):  # slow
         collision = 0
         for x in range(player.grid_x - 1, player.grid_x + 2):
@@ -142,9 +165,10 @@ class Window(QtGui.QWidget):
 
 
     def keyPressEvent(self, e):
+        temp_x = player.rect.x()
+        temp_y = player.rect.y()
 
         if e.key() == QtCore.Qt.Key_Up and not(self.unlock & COL_UP):
-            player.direction = 0
             player.rect.setRect(player.rect.x(), player.rect.y() - 2, X_PSIZE, Y_PSIZE)
         elif e.key() == QtCore.Qt.Key_Down and not(self.unlock & COL_DOWN):
             player.rect.setRect(player.rect.x(), player.rect.y() + 2, X_PSIZE, Y_PSIZE)
@@ -154,10 +178,24 @@ class Window(QtGui.QWidget):
             player.rect.setRect(player.rect.x() + 2, player.rect.y(), X_PSIZE, Y_PSIZE)
         elif e.key() == QtCore.Qt.Key_Space:
             player.bombList.append(Bomb(player.grid_x, player.grid_y))
+            replay.tileNode = replay.doc.createElement('tile')
+            replay.root.appendChild(replay.addTile(replay.tileNode, player.grid_x, player.grid_y, 3, GUI.frameCounter))
         elif e.key() == QtCore.Qt.Key_L:
-            map.loadMap()
+            map.loadMap(None)
         elif e.key() == QtCore.Qt.Key_S:
             map.saveMap()
+        elif e.key() == QtCore.Qt.Key_K:
+            replay.save()
+        elif e.key() == QtCore.Qt.Key_J:
+            #bots.clear()
+            self.frameCounter = 0
+            self.replayMode = 1
+            replay.load()
+
+
+        if temp_x != player.rect.x() or temp_y != player.rect.y():
+            replay.playerNode = replay.doc.createElement('player')
+            replay.root.appendChild(replay.addPlayer(replay.playerNode, player, self.frameCounter))
         # print(self.unlock)
         #print(player.grid_x, player.grid_y)
 
@@ -217,8 +255,9 @@ class Map:
             break
         print('saved')
 
-    def loadMap(self):
-        filename = input('nazwa pliku: ')
+    def loadMap(self, filename):
+        if filename == None:
+            filename = input('nazwa pliku: ')
         y = 0
         with open(filename) as f:
             for line in f:
@@ -236,8 +275,9 @@ class Map:
 
 
 class Player:
-
+    next_id = 0
     def __init__(self, x, y):
+        self.id = Player.next_id
         self.rect = QtCore.QRect(x, y, X_PSIZE, Y_PSIZE)
         #self.rect = QRectColor(x, y, 255)
         self.collision = 0
@@ -258,9 +298,17 @@ class Player:
         #     if map.map[x][y].id > 0:
         #         if self.rect.intersect(map.map[x][y].rect):
         #             self.direction = 0
+
+
+
 class Bot:
+    next_id = 0
     def __init__(self, x, y, range_a1, range_a2):
-        self.rect = QtCore.QRect(x, y, X_PSIZE, Y_PSIZE)
+        self.id = Bot.next_id
+        Bot.next_id += 1
+        self.x = x
+        self.y = y
+        self.rect = QtCore.QRect(self.x, self.y, X_PSIZE, Y_PSIZE)
         self.range_a1 = range_a1
         self.range_a2 = range_a2
         self.dirx = 1
@@ -318,12 +366,16 @@ class Bomb:
                 map.map[self.x - x1][self.y].id = 4
             elif map.map[self.x - x1][self.y].id == 1:
                 map.map[self.x - x1][self.y].id = 4
+                replay.tileNode = replay.doc.createElement('tile')
+                replay.root.appendChild(replay.addTile(replay.tileNode, (self.x - x1), self.y, 4, GUI.frameCounter))
                 break
         for x1 in range(1, self.bombRange):
             if map.map[self.x + x1][self.y].id == 0:
                 map.map[self.x + x1][self.y].id = 4
             elif map.map[self.x + x1][self.y].id == 1:
                 map.map[self.x + x1][self.y].id = 4
+                replay.tileNode = replay.doc.createElement('tile')
+                replay.root.appendChild(replay.addTile(replay.tileNode, (self.x + x1), self.y, 4, GUI.frameCounter))
                 break
 
         for x1 in range(1, self.bombRange):
@@ -331,12 +383,16 @@ class Bomb:
                 map.map[self.x][self.y + x1].id = 4
             elif map.map[self.x][self.y + x1].id == 1:
                 map.map[self.x][self.y + x1].id = 4
+                replay.tileNode = replay.doc.createElement('tile')
+                replay.root.appendChild(replay.addTile(replay.tileNode, self.x, (self.y + x1), 4, GUI.frameCounter))
                 break
         for x1 in range(1, self.bombRange):
             if map.map[self.x][self.y - x1].id == 0:
                 map.map[self.x][self.y - x1].id = 4
             elif map.map[self.x][self.y - x1].id == 1:
                 map.map[self.x][self.y - x1].id = 4
+                replay.tileNode = replay.doc.createElement('tile')
+                replay.root.appendChild(replay.addTile(replay.tileNode, self.x, (self.y - x1), 4, GUI.frameCounter))
                 break
         # for x1 in range(self.x - self.bombRange + 1, self.x + self.bombRange):
         #     if map.map[x1][self.y] < 2:
@@ -351,11 +407,17 @@ class Bomb:
     def bombExplode(self):
         # nie wyglada ladnie
         map.map[self.x][self.y].id = 0
+        replay.tileNode = replay.doc.createElement('tile')
+        replay.root.appendChild(replay.addTile(replay.tileNode, self.x, self.y, 0, GUI.frameCounter))
         for x1 in range(self.x - self.bombRange + 1, self.x + self.bombRange):
             if map.map[x1][self.y].id == 4:
+                replay.tileNode = replay.doc.createElement('tile')
+                replay.root.appendChild(replay.addTile(replay.tileNode, x1, self.y, 0, GUI.frameCounter))
                 map.map[x1][self.y].id = 0
         for y1 in range(self.y - self.bombRange + 1, self.y + self.bombRange):
             if map.map[self.x][y1].id == 4:
+                replay.tileNode = replay.doc.createElement('tile')
+                replay.root.appendChild(replay.addTile(replay.tileNode, self.x, y1, 0, GUI.frameCounter))
                 map.map[self.x][y1].id = 0
         self.bomb_timer.stop()
         player.bombList.pop(0)
@@ -367,6 +429,77 @@ class Bomb:
     # def checkBomb(self, x):
     #     for x1 in range(x - self.bombRange + 1, x + self.bombRange):
     #         if map.map[x1] == 0 or map.map[x1] == 1 or map.map[x1] == 3:
+
+class Replay:
+
+    def __init__(self):
+        # self.f = open("filename.xml", "wb")
+        self.playerList = []
+        self.tileList = []
+        self.doc = Document()
+        self.root = self.doc.createElement('game')
+        self.root.setAttribute('map', 'map1')
+        #dodawanie pozycji botow
+        self.botNode = self.doc.createElement('bot')
+        self.root.appendChild(self.addBot(self.botNode, bots[0]))
+
+        self.playerNode = self.doc.createElement('player')
+        self.tileNode = self.doc.createElement('tile')
+        #self.root.appendChild(self.addPlayer(self.playerNode, player))
+        #self.root.appendChild(self.addTile(self.tileNode, 1, 2, 3, 222))
+
+    def addBot(self, botNode, bot):
+        botNode.setAttribute('id', str(bot.id)) # str(bot.id)
+        position = str(bot.x) + ',' + str(bot.y) + ',' + str(bot.range_a1) + ',' + str(bot.range_a2)
+        botNode.appendChild(self.doc.createTextNode(position))
+        return botNode
+
+    def addPlayer(self, playerNode, player, frame):
+        playerNode.setAttribute('frame', str(frame))
+        position = str(player.rect.x()) + ',' + str(player.rect.y())
+        playerNode.appendChild(self.doc.createTextNode(position))
+        return playerNode
+
+    # def addBomb(self, bombNode, bomb):
+    #     position = str(bomb.x()) + ',' + str(bomb.y())
+    #     bombNode.appendChild(self.doc.createTextNode(position))
+    #     return bombNode
+
+    def addTile(self, tileNode, x, y, value, frame):
+        tileNode.setAttribute('frame', str(frame))
+        position = str(x) + ',' + str(y) + ',' + str(value)
+        tileNode.appendChild(self.doc.createTextNode(position))
+        return tileNode
+
+
+    def save(self):
+        self.root.appendChild(self.doc.createTextNode(''))
+        self.doc.appendChild(self.root)
+        self.doc.writexml(open('data.xml', 'w'),
+                     indent="  ",
+                     addindent="  ",
+                     newl='\n')
+
+        self.doc.unlink()
+        # self.f.close()
+        print('saved')
+    def load(self):
+        dom = parse('data.xml')
+        root = dom.documentElement
+        map.loadMap(root.getAttribute('map'))
+        for i in dom.childNodes[0].getElementsByTagName("bot"):
+            print(i.getAttribute('id')) # wartosc atrybutu
+            botParam = i.firstChild.data.split(',') # wartosci ze srodka
+            bots.append(Bot(int(botParam[0]), int(botParam[1]), int(botParam[2]), int(botParam[3]))) # dodajemy bota
+        for i in dom.childNodes[0].getElementsByTagName("player"):
+            playerxy = i.firstChild.data.split(',')
+            self.playerList.append([int(i.getAttribute('frame')), int(playerxy[0]), int(playerxy[1])])
+        print(self.playerList)
+        for i in dom.childNodes[0].getElementsByTagName("tile"):
+            i.getAttribute('frame')
+            tilexyv = i.firstChild.data.split(',')
+            self.tileList.append([int(i.getAttribute('frame')), int(tilexyv[0]), int(tilexyv[1]), int(tilexyv[2])])
+        print(self.tileList)
 
 
 def checkCollision(object1, object2):  # slow
@@ -387,6 +520,7 @@ bots = []
 bots.append(Bot(100, 320, 0, 300))
 map = Map(40, 40)
 player = Player(0, 0)
-app = QtGui.QApplication(sys.argv)
+app = QtWidgets.QApplication(sys.argv)
 GUI = Window()
+replay = Replay()
 sys.exit(app.exec_())
