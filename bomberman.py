@@ -1,21 +1,11 @@
-# classes
-# map
-# player
-# bomb
-# bot
-
 import sys
 import os
-
-import itertools
 import numpy as np
-from PyQt5 import QtGui, QtCore
-from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import QTimer
 from random import randint
 from PyQt5 import QtCore, QtGui, QtWidgets
 from xml.dom.minidom import *
-from collections import defaultdict
+from enum import Enum
 
 # block size
 X_SIZE = 20
@@ -33,9 +23,12 @@ COL_DOWN = 2
 COL_RIGHT = 4
 COL_LEFT = 8
 
+KEY_UP = 1
+KEY_DOWN = 2
+KEY_RIGHT = 4
+KEY_LEFT = 8
 
 class Window(QtWidgets.QWidget):
-    #isPaused = 0
     def __init__(self):
         super(Window, self).__init__() # parent object
         self.setStyleSheet('QWidget { background: #D5D9A9 }')
@@ -45,15 +38,15 @@ class Window(QtWidgets.QWidget):
         self.unlock = 0
         self.frameCounter = 0
         self.replayMode = 0
-        self.lf = 0;
-        self.lf2 = 0;
+        self.lf = 0
+        self.lf2 = 0
+        self.key = 0
         # init timer
         self.timer = QTimer()
         self.timer.timeout.connect(self.gameLoop)
-        self.timer.start(20)
+        self.timer.start(30)
     def gameLoop(self):
         if self.replayMode == 0:
-            self.repaint()
             self.checkMapCollision()
             checkCollision(player, bots[0])
             for bot in bots:
@@ -61,13 +54,7 @@ class Window(QtWidgets.QWidget):
         elif self.replayMode:
             for i in range(self.lf2, len(replay.tileList)):
                 if replay.tileList[i][0] == self.frameCounter: # moze byc kilka zmian w tej samej klatce
-                    # xx = replay.tileList[1]
-                    # yy = replay.tileList[2]
-                    # map.map[(lambda x: x if x > 0 else 0)(xx)][(lambda x: x if x > 0 else 0)(yy)].id = replay.tileList[3]
-                    print('test')
-                    #map.map[1][1].id = 0
                     map.map[replay.tileList[i][1]][replay.tileList[i][2]].id = replay.tileList[i][3]
-                    print('test111')
                 else:
                     self.lf2 = i
                     break
@@ -78,8 +65,8 @@ class Window(QtWidgets.QWidget):
                 else:
                     self.lf = i
                     break
-            self.repaint()
-
+        self.handleKeys()
+        self.repaint()
         self.frameCounter += 1
 
     def checkMapCollision(self):  # slow
@@ -122,28 +109,18 @@ class Window(QtWidgets.QWidget):
 
     def drawBlockN(self, qp, x, y):
         qp.fillRect(map.map[x][y].rect, QtGui.QColor(255, 200, 50, 160))
-        # qp.setBrush(QtGui.QColor(255, 200, 50, 160))
-        # qp.drawRect(X_SIZE * x, Y_SIZE * y, X_SIZE, Y_SIZE)
 
     def drawBlockD(self, qp, x, y):
         qp.fillRect(map.map[x][y].rect, QtGui.QColor(255, 50, 50, 160))
-        # qp.setBrush(QtGui.QColor(255, 50, 50, 160))
-        # qp.drawRect(X_SIZE * x, Y_SIZE * y, X_SIZE, Y_SIZE)
 
     def drawBomb(self, qp, x, y):
         qp.fillRect(map.map[x][y].rect, QtGui.QColor(0, 0, 0, 160))
-        # qp.setBrush(QtGui.QColor(0, 0, 0, 160))
-        # qp.drawEllipse(X_SIZE * x, Y_SIZE * y, X_SIZE, Y_SIZE)
 
     def drawBombExplode(self, qp, x, y):
         qp.fillRect(map.map[x][y].rect, QtGui.QColor(230, 20, 0, 160))
-        # qp.setBrush(QtGui.QColor(230, 20, 0, 160))
-        # qp.drawRect(X_SIZE * x, Y_SIZE * y, X_SIZE, Y_SIZE)
 
     def drawPlayer(self, qp):
         qp.fillRect(player.rect, QtGui.QColor(90, 90, 90, 160))
-        # qp.setBrush(QtGui.QColor(255, 255, 255, 160))
-        # qp.drawEllipse(player.x, player.y, X_PSIZE, Y_PSIZE)
     def drawBot(self, qp):
         bots[0].moveBot()
         qp.fillRect(bots[0].rect, QtGui.QColor(50, 90, 50, 160))
@@ -162,20 +139,52 @@ class Window(QtWidgets.QWidget):
             # elif value.id == 255:
             #     self.drawPlayer(qp, x, y)
 
+    def handleKeys(self):
 
-
-    def keyPressEvent(self, e):
         temp_x = player.rect.x()
         temp_y = player.rect.y()
 
-        if e.key() == QtCore.Qt.Key_Up and not(self.unlock & COL_UP):
+        # if self.key & KEY_UP | KEY_RIGHT and not(self.unlock & COL_UP | COL_RIGHT):
+        #     player.rect.setRect(player.rect.x() + 2, player.rect.y() - 2, X_PSIZE, Y_PSIZE)
+        # elif self.key & KEY_DOWN | KEY_RIGHT and not(self.unlock & COL_DOWN | COL_RIGHT):
+        #     player.rect.setRect(player.rect.x() + 2, player.rect.y() + 2, X_PSIZE, Y_PSIZE)
+        # elif self.key & KEY_DOWN | KEY_LEFT and not(self.unlock & COL_DOWN | COL_LEFT):
+        #     player.rect.setRect(player.rect.x() - 2, player.rect.y() + 2, X_PSIZE, Y_PSIZE)
+        # elif self.key & KEY_UP | KEY_LEFT and not (self.unlock & COL_DOWN | COL_LEFT):
+        #     player.rect.setRect(player.rect.x() - 2, player.rect.y() - 2, X_PSIZE, Y_PSIZE)
+        if self.key & KEY_UP and not self.unlock & COL_UP:
             player.rect.setRect(player.rect.x(), player.rect.y() - 2, X_PSIZE, Y_PSIZE)
-        elif e.key() == QtCore.Qt.Key_Down and not(self.unlock & COL_DOWN):
+        elif self.key & KEY_DOWN and not self.unlock & COL_DOWN:
             player.rect.setRect(player.rect.x(), player.rect.y() + 2, X_PSIZE, Y_PSIZE)
-        elif e.key() == QtCore.Qt.Key_Left and not(self.unlock & COL_LEFT):
-            player.rect.setRect(player.rect.x() - 2, player.rect.y(), X_PSIZE, Y_PSIZE)
-        elif e.key() == QtCore.Qt.Key_Right and not(self.unlock & COL_RIGHT):
+        elif self.key & KEY_RIGHT and not self.unlock & COL_RIGHT:
             player.rect.setRect(player.rect.x() + 2, player.rect.y(), X_PSIZE, Y_PSIZE)
+        elif self.key & KEY_LEFT and not self.unlock & COL_LEFT:
+            player.rect.setRect(player.rect.x() - 2, player.rect.y(), X_PSIZE, Y_PSIZE)
+
+        if temp_x != player.rect.x() or temp_y != player.rect.y():
+            replay.playerNode = replay.doc.createElement('player')
+            replay.root.appendChild(replay.addPlayer(replay.playerNode, player, self.frameCounter))
+
+    def keyReleaseEvent(self, e):
+        if e.key() == QtCore.Qt.Key_Up:
+            self.key &= ~KEY_UP
+        elif e.key() == QtCore.Qt.Key_Down:
+            self.key &= ~KEY_DOWN
+        elif e.key() == QtCore.Qt.Key_Left:
+            self.key &= ~KEY_LEFT
+        elif e.key() == QtCore.Qt.Key_Right:
+            self.key &= ~KEY_RIGHT
+        #self.handleKeys()
+
+    def keyPressEvent(self, e):
+        if e.key() == QtCore.Qt.Key_Up:
+            self.key |= KEY_UP
+        elif e.key() == QtCore.Qt.Key_Down:
+            self.key |= KEY_DOWN
+        elif e.key() == QtCore.Qt.Key_Left:
+            self.key |= KEY_LEFT
+        elif e.key() == QtCore.Qt.Key_Right:
+            self.key |= KEY_RIGHT
         elif e.key() == QtCore.Qt.Key_Space:
             player.bombList.append(Bomb(player.grid_x, player.grid_y))
             replay.tileNode = replay.doc.createElement('tile')
@@ -191,13 +200,8 @@ class Window(QtWidgets.QWidget):
             self.frameCounter = 0
             self.replayMode = 1
             replay.load()
+        #self.handleKeys()
 
-
-        if temp_x != player.rect.x() or temp_y != player.rect.y():
-            replay.playerNode = replay.doc.createElement('player')
-            replay.root.appendChild(replay.addPlayer(replay.playerNode, player, self.frameCounter))
-        # print(self.unlock)
-        #print(player.grid_x, player.grid_y)
 
 class QRectColor:
     def __init__(self, x, y, id):
@@ -212,7 +216,6 @@ class Map:
         self.map = [[QRectColor(i, j, 0) for j in range(x)] for i in range(y)]
         self.generateRandomMap()
         #self.generateMap()
-        #self.xml_file = None
     #TODO zrobic tablice z typami i kolorami bloczkow
 
     def getCoordinates(self, x, y):
@@ -266,6 +269,7 @@ class Map:
                     self.map[xx][y].id = x[xx]
                 y += 1
         print('loaded')
+
 # class Game:
 #     def __init__(self, map, players, mobs):
 #         self.map = map
@@ -279,6 +283,7 @@ class Player:
     def __init__(self, x, y):
         self.id = Player.next_id
         self.rect = QtCore.QRect(x, y, X_PSIZE, Y_PSIZE)
+        #self.rect += QtCore.QMargins(2, 2, 2, 2)
         #self.rect = QRectColor(x, y, 255)
         self.collision = 0
         self.direction = -1
@@ -445,8 +450,6 @@ class Replay:
 
         self.playerNode = self.doc.createElement('player')
         self.tileNode = self.doc.createElement('tile')
-        #self.root.appendChild(self.addPlayer(self.playerNode, player))
-        #self.root.appendChild(self.addTile(self.tileNode, 1, 2, 3, 222))
 
     def addBot(self, botNode, bot):
         botNode.setAttribute('id', str(bot.id)) # str(bot.id)
@@ -460,10 +463,6 @@ class Replay:
         playerNode.appendChild(self.doc.createTextNode(position))
         return playerNode
 
-    # def addBomb(self, bombNode, bomb):
-    #     position = str(bomb.x()) + ',' + str(bomb.y())
-    #     bombNode.appendChild(self.doc.createTextNode(position))
-    #     return bombNode
 
     def addTile(self, tileNode, x, y, value, frame):
         tileNode.setAttribute('frame', str(frame))
@@ -504,7 +503,6 @@ class Replay:
 
 def checkCollision(object1, object2):  # slow
     if object1.rect.intersects(object2.rect):
-        # z ktorej strony
         if object1.rect.y() <= object2.rect.y():
             print('z gory')
         if object1.rect.y() >= object2.rect.y():
