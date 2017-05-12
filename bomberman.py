@@ -5,14 +5,14 @@ from PyQt5.QtCore import QTimer
 from random import randint
 from PyQt5 import QtCore, QtGui, QtWidgets
 from xml.dom.minidom import *
-from enum import Enum
+import queue
 
 # block size
 X_SIZE = 20
 Y_SIZE = 20
 # player size
 X_PSIZE = 14
-Y_PSIZE = 18
+Y_PSIZE = 16
 # bot size
 X_BSIZE = 14
 Y_BSIZE = 18
@@ -47,8 +47,9 @@ class Window(QtWidgets.QWidget):
         self.timer.start(30)
     def gameLoop(self):
         if self.replayMode == 0:
-            self.checkMapCollision()
-            checkCollision(player, bots[0])
+            #self.checkMapCollision()
+            if checkCollision(player.rect, bots[0].rect):
+                restart()
             for bot in bots:
                 bot.moveBot()
         elif self.replayMode:
@@ -65,36 +66,10 @@ class Window(QtWidgets.QWidget):
                 else:
                     self.lf = i
                     break
+        #player.move(0, 1)
         self.handleKeys()
         self.repaint()
         self.frameCounter += 1
-
-    def checkMapCollision(self):  # slow
-        collision = 0
-        for x in range(player.grid_x - 1, player.grid_x + 2):
-            for y in range(player.grid_y - 1, player.grid_y + 2):
-                if x == player.grid_x and y == player.grid_y:
-                    continue
-                if player.rect.intersects(map.map[x][y].rect):
-                    collision += 1
-                    if map.map[x][y].id > 0 and map.map[x][y].id < 3:  # kolizja
-                        # z ktorej strony
-                        if y <= player.grid_y:
-                            print('z gory')
-                            self.unlock |= COL_UP
-                        if y >= player.grid_y:
-                            self.unlock |= COL_DOWN
-                            print('z dolu')
-                        if x <= player.grid_x:
-                            self.unlock |= COL_LEFT
-                            print('z lewej')
-                        if x >= player.grid_x:
-                            self.unlock |= COL_RIGHT
-                            print('z prawej')
-                        if map.map[x][y].id == 4:  # bomba
-                            print('game over')
-                elif collision == 0:
-                    self.unlock = 0;
 
     def home(self):
         QtGui.QGraphicsRectItem()
@@ -152,13 +127,30 @@ class Window(QtWidgets.QWidget):
         #     player.rect.setRect(player.rect.x() - 2, player.rect.y() + 2, X_PSIZE, Y_PSIZE)
         # elif self.key & KEY_UP | KEY_LEFT and not (self.unlock & COL_DOWN | COL_LEFT):
         #     player.rect.setRect(player.rect.x() - 2, player.rect.y() - 2, X_PSIZE, Y_PSIZE)
-        if self.key & KEY_UP and not self.unlock & COL_UP:
+        if self.key & KEY_UP:
+            for i in range(player.grid_x-1, player.grid_x+2):
+                testCollision(player.rect, map.map[player.grid_x][player.grid_y - 1].rect)
+            if map.map[player.grid_x][player.grid_y-1].id != 0:
+                 if not player.rect.top() >= map.map[player.grid_x][player.grid_y-1].rect.bottom()+2:
+                    return
             player.rect.setRect(player.rect.x(), player.rect.y() - 2, X_PSIZE, Y_PSIZE)
-        elif self.key & KEY_DOWN and not self.unlock & COL_DOWN:
+        elif self.key & KEY_DOWN:
+            for i in range(player.grid_x - 1, player.grid_x + 2):
+                if map.map[player.grid_x][player.grid_y+1].id != 0:
+                    if not player.rect.bottom() <= map.map[player.grid_x][player.grid_y+1].rect.top() - 2:
+                        return
             player.rect.setRect(player.rect.x(), player.rect.y() + 2, X_PSIZE, Y_PSIZE)
-        elif self.key & KEY_RIGHT and not self.unlock & COL_RIGHT:
+        elif self.key & KEY_RIGHT:
+            #for i in range(player.grid_y - 1, player.grid_y + 2):
+            if map.map[player.grid_x+1][player.grid_y].id != 0:
+                if not player.rect.right() + 2 <= map.map[player.grid_x+1][player.grid_y].rect.left():
+                    return
             player.rect.setRect(player.rect.x() + 2, player.rect.y(), X_PSIZE, Y_PSIZE)
-        elif self.key & KEY_LEFT and not self.unlock & COL_LEFT:
+        elif self.key & KEY_LEFT:
+            #for i in range(player.grid_y - 1, player.grid_y + 2):
+            if map.map[player.grid_x - 1][player.grid_y].id != 0:
+                if not player.rect.left() - 2 >= map.map[player.grid_x-1][player.grid_y].rect.right():
+                    return
             player.rect.setRect(player.rect.x() - 2, player.rect.y(), X_PSIZE, Y_PSIZE)
 
         if temp_x != player.rect.x() or temp_y != player.rect.y():
@@ -214,8 +206,8 @@ class Map:
     def __init__(self, x, y):
         #self.map = np.array([[QRectColor(i, j, 0) for j in range(x)] for i in range(y)])
         self.map = [[QRectColor(i, j, 0) for j in range(x)] for i in range(y)]
-        self.generateRandomMap()
-        #self.generateMap()
+        #self.generateRandomMap()
+        self.generateMap()
     #TODO zrobic tablice z typami i kolorami bloczkow
 
     def getCoordinates(self, x, y):
@@ -282,12 +274,14 @@ class Player:
     next_id = 0
     def __init__(self, x, y):
         self.id = Player.next_id
+        self.aimode = 0
         self.rect = QtCore.QRect(x, y, X_PSIZE, Y_PSIZE)
         #self.rect += QtCore.QMargins(2, 2, 2, 2)
         #self.rect = QRectColor(x, y, 255)
         self.collision = 0
         self.direction = -1
         self.bombList = []
+        self.q = queue
         self.bombRange = 0
     @property
     def grid_x(self):
@@ -295,6 +289,23 @@ class Player:
     @property
     def grid_y(self):
         return int((self.rect.y() + Y_PSIZE/2)/Y_SIZE)
+
+    def move(self, x, y):
+        x *= 20
+        y *= 20
+        speedx = 2
+        speedy = 2
+        if x < self.rect.x():
+            speedx = -2
+        if y < self.rect.y():
+            speedy = -2
+        if self.rect.x() != x:
+            self.rect.setRect(self.rect.x() + speedx, self.rect.y(), X_BSIZE, Y_BSIZE)
+        elif self.rect.y() != y:
+            self.rect.setRect(self.rect.x(), self.rect.y() + speedy, X_BSIZE, Y_BSIZE)
+
+
+
 
 
     # def checkCollision(self):
@@ -334,7 +345,6 @@ class Bot:
         self.rect.y() + Y_BSIZE/2
 
     def move(self, speed, x, y):
-
         self.rect.setRect(self.rect.x() + speed, self.rect.y() + speed, X_BSIZE, Y_BSIZE)
 
     def moveBot(self):
@@ -400,11 +410,21 @@ class Bomb:
                 replay.root.appendChild(replay.addTile(replay.tileNode, self.x, (self.y - x1), 4, GUI.frameCounter))
                 break
         # for x1 in range(self.x - self.bombRange + 1, self.x + self.bombRange):
-        #     if map.map[x1][self.y] < 2:
+        #     if map.map[x1][self.y] == 0:
         #         map.map[x1][self.y] = 4
+        #     elif map.map[x1][self.y] == 1:
+        #         map.map[x1][self.y].id = 4
+        #         replay.tileNode = replay.doc.createElement('tile')
+        #         replay.root.appendChild(replay.addTile(replay.tileNode, x1, self.y, 4, GUI.frameCounter))
+        #         break
         # for y1 in range(self.y - self.bombRange + 1, self.y + self.bombRange):
-        #     if map.map[self.x][y1] < 3:
+        #     if map.map[self.x][y1] == 0:
         #         map.map[self.x][y1] = 4
+        #     elif map.map[self.x][y1] == 1:
+        #         map.map[self.x][y1].id = 4
+        #         replay.tileNode = replay.doc.createElement('tile')
+        #         replay.root.appendChild(replay.addTile(replay.tileNode, self.x, y1, 4, GUI.frameCounter))
+        #         break
         # for x in range(self.x-1, self.x+2):
         #     for y in range(self.y-1, self.y + 2):
         #         if map.map[x][y] == 0 or map.map[x][y] == 1 or  map.map[x][y] == 3:
@@ -501,24 +521,54 @@ class Replay:
         print(self.tileList)
 
 
-def checkCollision(object1, object2):  # slow
-    if object1.rect.intersects(object2.rect):
-        if object1.rect.y() <= object2.rect.y():
-            print('z gory')
-        if object1.rect.y() >= object2.rect.y():
-            print('z dolu')
-        if object1.rect.x() <= object2.rect.x():
-            print('z lewej')
-        if object1.rect.x() >= object2.rect.x():
-            print('z prawej')
+# def checkCollision(object1, object2):  # slow
+#     if object1.rect.intersects(object2.rect):
+#         if object1.rect.y() <= object2.rect.y():
+#             return 1
+#         if object1.rect.y() >= object2.rect.y():
+#             return 2
+#         if object1.rect.x() <= object2.rect.x():
+#             return 3
+#         if object1.rect.x() >= object2.rect.x():
+#             return 4
+#     return 0
+def testCollision(a, b):
+    return a.right() >= b.left() and a.left() <= b.right() and a.bottom() >= b.top() and a.top() <= b.bottom();
+
+def testPlayerCollision(a, b):
+    return a.right() >= b.left()-2 and a.left() <= b.right()+2 and a.bottom() >= b.top()-2 and a.top() <= b.bottom()+2;
+
+def checkCollision(p1, p2):
+    if not testCollision(p1, p2):
+        return 0
+
+    if (p1.bottom() >= p2.top()): #z dolu
+        return 1
+
+    elif (p1.right() >= p2.left()): #z prawej
+        return 2
+
+    elif (p1.left() >= p2.right()): # z lewej
+        return 3
+
+    elif (p1.top() <= p2.bottom()): #z gory
+        return 4
 
 
+def restart():
+    bots.clear()
+    bots.append(Bot(100, 320, 0, 300))
+    map.generateMap()
+    player.rect.setRect(0, 0, X_PSIZE, Y_PSIZE)
+    GUI.repaint()
 
 bots = []
 bots.append(Bot(100, 320, 0, 300))
 map = Map(40, 40)
 player = Player(0, 0)
+#player.q.heappush()
 app = QtWidgets.QApplication(sys.argv)
 GUI = Window()
 replay = Replay()
 sys.exit(app.exec_())
+
