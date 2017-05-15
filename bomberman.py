@@ -5,6 +5,7 @@ from PyQt5.QtCore import QTimer
 from random import randint
 from PyQt5 import QtCore, QtGui, QtWidgets
 from xml.dom.minidom import *
+
 import queue
 import copy
 
@@ -59,6 +60,8 @@ class Window(QtWidgets.QWidget):
                 if bombCollision(bot):
                     bots.remove(bot)
         elif self.replayMode:
+            for bot in bots:
+                bot.moveBot()
             for i in range(self.lf2, len(replay.tileList)):
                 if replay.tileList[i][0] == self.frameCounter: # moze byc kilka zmian w tej samej klatce
                     map.map[replay.tileList[i][1]][replay.tileList[i][2]].id = replay.tileList[i][3]
@@ -72,7 +75,15 @@ class Window(QtWidgets.QWidget):
                 else:
                     self.lf = i
                     break
-        #player.move(0, 1)
+        # if player.rect.intersects(map.map[player.grid_x][player.grid_y].rect) and map.map[player.grid_x][player.grid_y].id == 1:
+        #     player.move(player.grid_x-1, player.grid_y)
+        #     player.bombList.append(Bomb(player.grid_x, player.grid_y))
+        #     #player.move(player.grid_x-1, player.grid_y-1)
+        # elif player.rect.intersects(map.map[player.grid_x][player.grid_y].rect) and map.map[player.grid_x][player.grid_y].id == 4 or \
+        #                 map.map[player.grid_x][player.grid_y].id == 0:
+        #     player.move(1, 1)
+        # else :
+        #     player.move(10, 20)
         if bombCollision(player):
             restart()
         self.handleKeys()
@@ -195,6 +206,7 @@ class Window(QtWidgets.QWidget):
         elif e.key() == QtCore.Qt.Key_K:
             replay.save()
         elif e.key() == QtCore.Qt.Key_J:
+            bots.clear()
             self.frameCounter = 0
             self.replayMode = 1
             replay.load()
@@ -404,13 +416,11 @@ class Bomb:
         replay.tileNode = replay.doc.createElement('tile')
         replay.root.appendChild(replay.addTile(replay.tileNode, self.x, self.y, 0, GUI.frameCounter))
         for x1 in range(self.x - self.bombRange + 1, self.x + self.bombRange):
-            print(x1)
             if map.map[x1][self.y].id == 4:
                 replay.tileNode = replay.doc.createElement('tile')
                 replay.root.appendChild(replay.addTile(replay.tileNode, x1, self.y, 0, GUI.frameCounter))
                 map.map[x1][self.y].id = 0
         for y1 in range(self.y - self.bombRange + 1, self.y + self.bombRange):
-            print(y1)
             if map.map[self.x][y1].id == 4:
                 replay.tileNode = replay.doc.createElement('tile')
                 replay.root.appendChild(replay.addTile(replay.tileNode, self.x, y1, 0, GUI.frameCounter))
@@ -426,10 +436,11 @@ class Replay:
         self.tileList = []
         self.doc = Document()
         self.root = self.doc.createElement('game')
-        self.root.setAttribute('map', 'map1')
+        self.root.setAttribute('map', 'map4')
         #dodawanie pozycji botow
-        self.botNode = self.doc.createElement('bot')
-        self.root.appendChild(self.addBot(self.botNode, bots[0]))
+        for bot in bots:
+            self.botNode = self.doc.createElement('bot')
+            self.root.appendChild(self.addBot(self.botNode, bot))
 
         self.playerNode = self.doc.createElement('player')
         self.tileNode = self.doc.createElement('tile')
@@ -481,6 +492,13 @@ class Replay:
             tilexyv = i.firstChild.data.split(',')
             self.tileList.append([int(i.getAttribute('frame')), int(tilexyv[0]), int(tilexyv[1]), int(tilexyv[2])])
         print(self.tileList)
+
+class AI:
+    def __init__(self):
+        if player.rect.intersects(map.map[player.grid_x][player.grid_y].rect):
+            player.bombList.append(Bomb(player.grid_x, player.grid_y))
+    def bombTile(self):
+        player.bombList.append(Bomb(player.grid_x, player.grid_y))
 
 
 def testCollision(a, b):
