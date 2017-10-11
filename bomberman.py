@@ -5,6 +5,7 @@ from PyQt5.QtCore import QTimer
 from random import randint
 from PyQt5 import QtCore, QtGui, QtWidgets
 from xml.dom.minidom import *
+from pathlib import Path
 
 import queue
 import copy
@@ -51,6 +52,14 @@ class Window(QtWidgets.QWidget):
         self.timer.timeout.connect(self.gameLoop)
         self.timer.start(30)
 
+        #QtWidgets.QMenuBar
+        #QtWidgets.QAction
+        self.myQMenuBar = QtWidgets.QMenuBar(self)
+        self.exitMenu = self.myQMenuBar.addMenu('File')
+        self.exitAction = QtWidgets.QAction('Exit', self)
+        self.exitAction.triggered.connect(QtWidgets.qApp.quit)
+        self.exitMenu.addAction(self.exitAction)
+
     def gameLoop(self):
         if self.replayMode == 0:
             for bot in bots:
@@ -60,30 +69,24 @@ class Window(QtWidgets.QWidget):
                 if bombCollision(bot):
                     bots.remove(bot)
         elif self.replayMode:
+            if self.frameCounter == replay.playerList[-1]:
+                self.replayMode = 0
+                self.frameCounter = 0
             for bot in bots:
                 bot.moveBot()
             for i in range(self.lf2, len(replay.tileList)):
-                if replay.tileList[i][0] == self.frameCounter: # moze byc kilka zmian w tej samej klatce
+                if replay.tileList[i][0] == self.frameCounter:
                     map.map[replay.tileList[i][1]][replay.tileList[i][2]].id = replay.tileList[i][3]
                 else:
                     self.lf2 = i
                     break
 
             for i in range(self.lf, len(replay.playerList)):
-                if replay.playerList[i][0] == self.frameCounter: # moze byc kilka zmian w tej samej klatce
+                if replay.playerList[i][0] == self.frameCounter:
                     player.rect.setRect(replay.playerList[i][1], replay.playerList[i][2], X_PSIZE, Y_PSIZE)
                 else:
                     self.lf = i
                     break
-        # if player.rect.intersects(map.map[player.grid_x][player.grid_y].rect) and map.map[player.grid_x][player.grid_y].id == 1:
-        #     player.move(player.grid_x-1, player.grid_y)
-        #     player.bombList.append(Bomb(player.grid_x, player.grid_y))
-        #     #player.move(player.grid_x-1, player.grid_y-1)
-        # elif player.rect.intersects(map.map[player.grid_x][player.grid_y].rect) and map.map[player.grid_x][player.grid_y].id == 4 or \
-        #                 map.map[player.grid_x][player.grid_y].id == 0:
-        #     player.move(1, 1)
-        # else :
-        #     player.move(10, 20)
         if bombCollision(player):
             restart()
         self.handleKeys()
@@ -206,10 +209,9 @@ class Window(QtWidgets.QWidget):
         elif e.key() == QtCore.Qt.Key_K:
             replay.save()
         elif e.key() == QtCore.Qt.Key_J:
-            bots.clear()
-            self.frameCounter = 0
-            self.replayMode = 1
-            replay.load()
+            if(replay.load()):
+                self.frameCounter = 0
+                self.replayMode = 1
 
 class QRectColor:
     def __init__(self, x, y, id):
@@ -280,15 +282,18 @@ class Map:
 
     def loadMap(self, filename):
         if filename == None:
-            filename = input('nazwa pliku: ')
+            filename = input('filename: ')
         y = 0
-        with open(filename) as f:
-            for line in f:
-                x = [int(i) for i in line.split()]
-                for xx in range(40):
-                    self.map[xx][y].id = x[xx]
-                y += 1
-        print('loaded')
+        try:
+            with open(filename) as f:
+                for line in f:
+                    x = [int(i) for i in line.split()]
+                    for xx in range(40):
+                        self.map[xx][y].id = x[xx]
+                    y += 1
+            print('loaded')
+        except FileNotFoundError:
+            print("Wrong file or file path")
 
 
 class Player:
@@ -328,6 +333,14 @@ class Player:
 
 class Bot:
     next_id = 0
+    """
+    Bot is very simple and can move only in horizontal axis 
+    :param x: x position of bot
+    :param y: y position
+    :param range_a1: specify range along x axis
+    :param range_a2: specify range along x axis
+
+    """
     def __init__(self, x, y, range_a1, range_a2):
         self.id = Bot.next_id
         Bot.next_id += 1
@@ -476,7 +489,13 @@ class Replay:
         print('saved')
 
     def load(self):
-        dom = parse('data.xml')
+        my_file = Path("data.xml")
+        if my_file.is_file():
+            dom = parse("data.xml")
+        else:
+            print("Replay file doesn't exist")
+            return False
+        bots.clear()
         root = dom.documentElement
         map.loadMap(root.getAttribute('map'))
         for i in dom.childNodes[0].getElementsByTagName("bot"):
@@ -492,6 +511,7 @@ class Replay:
             tilexyv = i.firstChild.data.split(',')
             self.tileList.append([int(i.getAttribute('frame')), int(tilexyv[0]), int(tilexyv[1]), int(tilexyv[2])])
         print(self.tileList)
+        return True
 
 class AI:
     def __init__(self):
@@ -540,10 +560,11 @@ def restart():
     GUI.repaint()
 
 bots = []
-bots.append(Bot(100, 320, 20, 300))
+#
+bots.append(Bot(100, 320, 20, 300)) # bot will appear in position (100, 320) and move in horizontal range (20, 300)
 bots.append(Bot(400, 400, 400, 500))
 bots.append(Bot(80, 80, 80, 200))
-map = Map(40, 40)
+map = Map(40, 40) # 40x40 map
 player = Player(20, 20)
 app = QtWidgets.QApplication(sys.argv)
 GUI = Window()
